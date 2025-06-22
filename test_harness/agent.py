@@ -230,6 +230,7 @@ def generate_testbench_from_strings(golden_source, buggy_source):
 # TODO: Implement this.
 def generate_testbench(file_name_to_content: dict[str, str]) -> str:
     spec = file_name_to_content['specification.md']
+    file_name_to_content.pop('tb.v')
     # send spec file to llm in prompt using the api
 
     golden_file = spec # this will be the result of the llm prompt
