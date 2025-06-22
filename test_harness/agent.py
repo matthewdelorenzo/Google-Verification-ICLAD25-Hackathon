@@ -12,6 +12,20 @@ import tempfile
 import subprocess
 import os
 
+def extract_module_header(verilog_str):
+    """
+    Extracts the first line of the first module definition, e.g.,
+    'module <name>(...);'
+    """
+    pattern = r'\bmodule\s+\w+\s*\(.*?\);'
+    match = re.search(pattern, verilog_str, re.DOTALL)
+
+    if not match:
+        raise ValueError("No module header found.")
+
+    return match.group(0).strip()
+
+
 def simulate_verilog(golden_str, buggy_str, testbench_str):
     # Create temporary files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -231,21 +245,26 @@ def generate_testbench_from_strings(golden_source, buggy_source):
 def generate_testbench(file_name_to_content: dict[str, str]) -> str:
     spec = file_name_to_content['specification.md']
     file_name_to_content.pop('tb.v')
-    # send spec file to llm in prompt using the api
 
+    # ASSUMPTION: Module header is constant across mutations
+    first_module = file_name_to_content['mutant_0.v']
+    mod_header = extract_module_header(first_module)
+
+    # send spec file to llm in prompt using the api
     golden_file = spec # this will be the result of the llm prompt
+
+    # generate all testbenches
     generated_tbs_dict = {}
-    
     for filename in file_name_to_content.keys:
         if filename[-1] == 'v':
             generated_tbs_dict[filename] = generate_testbench_from_strings(golden_file, file_name_to_content[filename])
 
-
+    # simulate each testbench
     tb_pass_fail = {}
     for inst in generated_tbs_dict.key:
         tb_pass_fail[inst] = simulate_verilog(golden_file, file_name_to_content[inst], generated_tbs_dict[inst])
-
     print(tb_pass_fail)
+
 
     del file_name_to_content
     return constants.DUMMY_TESTBENCH
