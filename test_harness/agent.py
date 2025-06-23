@@ -1,16 +1,16 @@
 """Agent definition that generates a testbench."""
 
 import constants
-
-# -------- Helper Functions
 import re
-import argparse
 import random
 from pathlib import Path
 import subprocess
 import tempfile
 import subprocess
 import os
+import yaml
+import requests
+import argparse
 
 def extract_module_header(verilog_str):
     """
@@ -50,6 +50,44 @@ def simulate_verilog(golden_str, buggy_str, testbench_str):
 
         return result.stdout  # or result.stderr if needed
 
+def send_prompt(prompt: str, config: dict) -> str:
+    """
+    Send a single prompt to the model server and return the text response.
+    """
+    url = f"{config['model_server_base_url']}/workspace/{config['workspace_slug']}/chat"
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {config['api_key']}"
+    }
+
+    payload = {
+        "message": prompt,
+        "mode": "chat",
+        "sessionId": "example-session-id",
+        "attachments": []
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        timeout=config.get("stream_timeout", 60)
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data.get("textResponse", "")
+
+
+def load_config(path: str = "config.yaml") -> dict:
+    """
+    Load YAML configuration from the given file path.
+    """
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
 
 def parse_verilog_module_from_string(content):
     """Parse a Verilog string to extract module name, inputs, and outputs."""
@@ -82,6 +120,19 @@ def parse_verilog_module_from_string(content):
         outputs[name] = width
 
     return module_name, inputs, outputs
+
+def extract_verilog_module(text: str) -> str:
+    """
+    Extracts the first Verilog module definition from the given text.
+    Returns the snippet from the 'module' keyword through 'endmodule'.
+    Raises ValueError if no module is found.
+    """
+    pattern = re.compile(r'(module\b[\s\S]*?endmodule)', re.IGNORECASE | re.MULTILINE)
+    match = pattern.search(text)
+    if match:
+        return match.group(1)
+    raise ValueError("No Verilog module found in the provided text.")
+
 
 def generate_testbench_from_strings(golden_source, buggy_source):
     """Generate a Verilog testbench as a string to compare two modules."""
@@ -250,25 +301,61 @@ def generate_testbench(file_name_to_content: dict[str, str]) -> str:
     first_module = file_name_to_content['mutant_0.v']
     mod_header = extract_module_header(first_module)
 
+    prompt = "You are a professional hardware engineer that translates natural langauge specifications of designs into a Verilog code implementation.\nPlease closely analyze the specification text below:\n\n"
+    prompt += "---\n" + spec + "\n---\n\n"
+    prompt += "Then, determine a step-by-step approach for creating a Verilog module implementation of this design that is both syntactically correct and functionally correct.\n"
+    prompt += "In generating this code, please utilize the module instatiation variables included here for the module:\n"
+    prompt += mod_header
+
+    print("--PROMPT--\n")
+    print(prompt)
+
+    print("\n\n")
+
+    config = load_config("config.yaml")
+    response = send_prompt(prompt, config)
+
+    print("--RESPONSE--\n")
+    print(response)
+
+    try:
+        module_text = extract_verilog_module(response)
+        print("\nExtracted Verilog module:\n", module_text)
+    except ValueError as e:
+        print("\n", e)
+
+    print("--FINAL VERILOG--")
+    print(module_text)
+    print("\n\n")
+
+
     # send spec file to llm in prompt using the api
-    golden_file = spec # this will be the result of the llm prompt
+    golden_file = module_text # this will be the result of the llm prompt
 
     # generate all testbenches
     generated_tbs_dict = {}
-    for filename in file_name_to_content.keys:
+    for filename in file_name_to_content.keys():
         if filename[-1] == 'v':
             generated_tbs_dict[filename] = generate_testbench_from_strings(golden_file, file_name_to_content[filename])
 
     # simulate each testbench
     tb_pass_fail = {}
-    for inst in generated_tbs_dict.key:
+    for inst in generated_tbs_dict.keys():
         tb_pass_fail[inst] = simulate_verilog(golden_file, file_name_to_content[inst], generated_tbs_dict[inst])
-    print(tb_pass_fail)
+    
+    # Filter passing testbenches
+    passing_testbenches = {
+        name: generated_tbs_dict[name]
+        for name, sim_output in tb_pass_fail.items()
+        if "discrepancies found" not in sim_output.lower()
+    }
 
+    if not passing_testbenches:
+        raise RuntimeError("No testbenches passed the simulation checks.")
 
-    del file_name_to_content
-    return constants.DUMMY_TESTBENCH
+    # Choose one passing testbench to return
+    selected_tb_name = random.choice(list(passing_testbenches.keys()))
+    selected_testbench = passing_testbenches[selected_tb_name]
 
-
-
-
+    print(f"Selected passing testbench: {selected_tb_name}")
+    return selected_testbench

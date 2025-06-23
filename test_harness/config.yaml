@@ -1,0 +1,5 @@
+api_key: "XGVEGZ3-3SHM9Q2-QR96SWF-GSWHQEF"
+model_server_base_url: "http://localhost:3001/api/v1"
+workspace_slug: "google"
+stream: true
+stream_timeout: 120
