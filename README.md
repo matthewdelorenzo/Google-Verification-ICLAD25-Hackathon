@@ -46,3 +46,9 @@ Our approach consists of two main components:
    - The approach scales effortlessly for larger or more complex designs.
 
 ---
+
+## Results
+
+We were able to create a full pipeline that can generate these testbenches.
+Due to some techincal difficulties with AnythingLLM, we currently do not have the testbenches submitted to the repository.
+However, for each problem, we do include our golden Verilog code (generated with our local model QWEN-2.5B-Instruct), which can be utilized with our framework to generate the associated testbenches.
