@@ -8,6 +8,12 @@
 
 ## Solution Architecture
 
+To generate the testbenches that correctly identify the golden Verilog code out of the 31 options, we take a unique approach.
+As opposed to directly generating the testbench, we instead leverage the text processing capabilities of the LLM by generating our own RTL code from the natural langauge specification.
+Assuming this Verilog is correct, we then create a unique testbench for each Verilog instance by creating an automated equivalence checking script.
+This creates a set of testbenches that we can simulate, and if our code is correct, only one tesbench will pass for the given verilog problem.
+We can then use this as our final Verilog testbench.
+
 Our approach consists of two main components:
 
 ### 1. SPEC Generation Using SLM Models
