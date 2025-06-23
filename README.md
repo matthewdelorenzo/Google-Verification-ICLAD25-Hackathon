@@ -49,6 +49,6 @@ Our approach consists of two main components:
 
 ## Results
 
-We were able to create a full pipeline that can generate these testbenches.
+We were able to create a full pipeline that can generate these testbenches (see agent.py).
 Due to some techincal difficulties with AnythingLLM, we currently do not have the testbenches submitted to the repository.
-However, for each problem, we do include our golden Verilog code (generated with our local model QWEN-2.5B-Instruct), which can be utilized with our framework to generate the associated testbenches.
+However, for each problem repostiory, we did upload our golden Verilog code (generated with our local model QWEN-2.5B-Instruct), which can be utilized with our framework to generate the associated testbenches.
